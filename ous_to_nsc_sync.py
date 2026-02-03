@@ -73,10 +73,10 @@ def is_mft_complete_file(path: str) -> bool:
     Detect if the MFT has finished writing 'path' based on stat timestamps.
 
     Rule:
-      - During transfer: mtime == ctime
-      - After completion: ctime > mtime (change time updates after modify time)
+      - During transfer: mtime == ctime (equal means still writing)
+      - After completion: mtime != ctime (not equal means transfer is done)
 
-    We treat "complete" as ctime > mtime.
+    We treat "complete" as mtime != ctime.
     """
     try:
         mtime_ns, ctime_ns = get_stat_times(path)
@@ -84,7 +84,7 @@ def is_mft_complete_file(path: str) -> bool:
         logging.warning(f"Could not stat {path}: {e}")
         return False
 
-    return ctime_ns > mtime_ns
+    return mtime_ns != ctime_ns
 
 
 def is_dir_old_enough(path: str, min_age: int) -> bool:
@@ -144,29 +144,34 @@ def prune_empty_dirs(root: str, min_age: int, dry_run: bool) -> bool:
     Allows deleting directories with more recent mtime if the mtime was sufficient before deleting its children.
     """
 
+    # If root doesn't exist, it's considered deletable
+    if not os.path.exists(root):
+        return True
+
     is_deletable = is_dir_old_enough(root, min_age)
 
-    for entry in os.scandir(root):
-        entry_path = os.path.join(root, entry.name)
-        if entry.is_file():
-            if entry.name == ".DS_Store" and not dry_run:
-                # Remove Mac crap files
-                os.unlink(entry_path)
-            else:
-                # Not allowed to delete directories with files
-                is_deletable = False
-
-        elif entry.is_dir():
-            if not prune_empty_dirs(entry_path, min_age, dry_run):
-                # Child dir can't be removed, so we don't remove this one either
-                is_deletable = False
-            else:
-                if dry_run:
-                    logging.info(f"[DRY-RUN] Would remove directory {dirpath}")
+    with os.scandir(root) as entries:
+        for entry in entries:
+            entry_path = os.path.join(root, entry.name)
+            if entry.is_file():
+                if entry.name == ".DS_Store" and not dry_run:
+                    # Remove Mac crap files
+                    os.unlink(entry_path)
                 else:
-                    os.rmdir(entry_path)
+                    # Not allowed to delete directories with files
+                    is_deletable = False
 
-        return is_deletable
+            elif entry.is_dir():
+                if not prune_empty_dirs(entry_path, min_age, dry_run):
+                    # Child dir can't be removed, so we don't remove this one either
+                    is_deletable = False
+                else:
+                    if dry_run:
+                        logging.info(f"[DRY-RUN] Would remove directory {entry_path}")
+                    else:
+                        os.rmdir(entry_path)
+
+    return is_deletable
 
 
 
