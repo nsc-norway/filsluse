@@ -149,6 +149,10 @@ def prune_empty_dirs(root: str, min_age: int, dry_run: bool) -> bool:
     Allows deleting directories with more recent mtime if the mtime was sufficient before deleting its children.
     """
 
+    # If root doesn't exist, it's considered deletable
+    if not os.path.exists(root):
+        return True
+
     is_deletable = is_path_old_enough(root, min_age)
 
     for entry in os.scandir(root):
