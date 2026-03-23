@@ -72,7 +72,7 @@ class TestOusToNscSync(unittest.TestCase):
             f.write("incomplete content")
         
         # Mock: file1 is complete, file2 is not
-        mock_is_complete.side_effect = lambda path: path == file1
+        mock_is_complete.side_effect = lambda path, fallback_min_age: path == file1
         
         # Execute
         dst_leaf = os.path.join(self.boston_root, "project1", "Til_NSC")
@@ -186,7 +186,8 @@ class TestOusToNscSync(unittest.TestCase):
         mock_obj.st_ctime_ns = 1000000000000
         mock_stat.return_value = mock_obj
         
-        self.assertFalse(sync.is_mft_complete_file("/fake/path"))
+        with patch('ous_to_nsc_sync.time.time_ns', return_value=1000000000000):
+            self.assertFalse(sync.is_mft_complete_file("/fake/path", fallback_min_age=900))
 
     @patch('ous_to_nsc_sync.os.stat')
     def test_is_mft_complete_file_after_transfer(self, mock_stat):
@@ -197,7 +198,7 @@ class TestOusToNscSync(unittest.TestCase):
         mock_obj.st_ctime_ns = 999999999999
         mock_stat.return_value = mock_obj
         
-        self.assertTrue(sync.is_mft_complete_file("/fake/path"))
+        self.assertTrue(sync.is_mft_complete_file("/fake/path", fallback_min_age=900))
 
     @patch('ous_to_nsc_sync.os.stat')
     def test_is_mft_complete_file_mtime_greater_than_ctime(self, mock_stat):
@@ -208,12 +209,27 @@ class TestOusToNscSync(unittest.TestCase):
         mock_obj.st_ctime_ns = 1000000000000
         mock_stat.return_value = mock_obj
         
-        self.assertTrue(sync.is_mft_complete_file("/fake/path"))
+        self.assertTrue(sync.is_mft_complete_file("/fake/path", fallback_min_age=900))
         
         # If mtime == ctime, not complete
         mock_obj.st_mtime_ns = 1000000000000
         mock_obj.st_ctime_ns = 1000000000000
-        self.assertFalse(sync.is_mft_complete_file("/fake/path"))
+        with patch('ous_to_nsc_sync.time.time_ns', return_value=1000000000000):
+            self.assertFalse(sync.is_mft_complete_file("/fake/path", fallback_min_age=900))
+
+    @patch('ous_to_nsc_sync.os.stat')
+    def test_is_mft_complete_file_fallback_timeout(self, mock_stat):
+        """Equal timestamps become complete once fallback age is exceeded."""
+        mock_obj = MagicMock()
+        mock_obj.st_mtime_ns = 1000000000000
+        mock_obj.st_ctime_ns = 1000000000000
+        mock_stat.return_value = mock_obj
+
+        with patch('ous_to_nsc_sync.time.time_ns', return_value=1000000000800):
+            self.assertFalse(sync.is_mft_complete_file("/fake/path", fallback_min_age=900))
+
+        with patch('ous_to_nsc_sync.time.time_ns', return_value=1000000000900):
+            self.assertTrue(sync.is_mft_complete_file("/fake/path", fallback_min_age=900))
 
     def test_main_runs_with_test_transfer_jobs(self):
         """Test main executes with patched TRANSFER_JOBS."""

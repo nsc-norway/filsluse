@@ -54,6 +54,8 @@ BOSTON_ROOT = "/boston/runScratch/OUS-filsluse"
 
 # How long dirs must have been untouched before we consider deleting them (seconds)
 DIR_MIN_AGE = 300  # 5 minutes
+# If the file timestamp heuristic indicates an ongoing transfer, use this fallback
+FILE_FALLBACK_MIN_AGE = 900 # 15 minutes
 
 LOCKFILE = "/var/lock/filsluse/ous_to_nsc_sync.lock"
 
@@ -68,15 +70,15 @@ def get_stat_times(path: str):
     return stat_info.st_mtime_ns, stat_info.st_ctime_ns
 
 
-def is_mft_complete_file(path: str) -> bool:
+def is_mft_complete_file(path: str, fallback_min_age: int) -> bool:
     """
     Detect if the MFT has finished writing 'path' based on stat timestamps.
 
     Rule:
       - During transfer: mtime == ctime (equal means still writing)
       - After completion: mtime != ctime (not equal means transfer is done)
+      - If the file is older than the specified fallback_min_age we consider it complete regardless of timestamps.
 
-    We treat "complete" as mtime != ctime.
     """
     try:
         mtime_ns, ctime_ns = get_stat_times(path)
@@ -84,7 +86,10 @@ def is_mft_complete_file(path: str) -> bool:
         logging.warning(f"Could not stat {path}: {e}")
         return False
 
-    return mtime_ns != ctime_ns
+    if mtime_ns != ctime_ns:
+        return True
+    else:
+        return (time.time_ns() - mtime_ns) >= fallback_min_age
 
 
 def is_dir_old_enough(path: str, min_age: int) -> bool:
@@ -114,7 +119,7 @@ def move_ready_files_ous_to_boston(ous_leaf: str, dst_leaf: str, dry_run: bool) 
 
         for fname in filenames:
             src_file = os.path.join(dirpath, fname)
-            if not is_mft_complete_file(src_file):
+            if not is_mft_complete_file(src_file, FILE_FALLBACK_MIN_AGE):
                 continue
 
             dst_file = os.path.join(dest_dirpath, fname)
