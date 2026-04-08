@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import json
 import os
 import shutil
 import sys
@@ -9,48 +10,6 @@ import logging
 
 # --- Configuration ---
 
-
-
-TRANSFER_JOBS = [
-    (
-        "/mnt/ous-fx/UL-AMG-MiSeq/AMG/Til NSC",
-        "/boston/runScratch/OUS-filsluse/UL-AMG-MiSeq/AMG/Til_NSC",
-    ),
-    (
-        "/mnt/ous-fx/UL-AMG-MiSeq/IMM/Til NSC",
-        "/boston/runScratch/OUS-filsluse/UL-AMG-MiSeq/IMM/Til_NSC",
-    ),
-    (
-        "/mnt/ous-fx/UL-AMG-MiSeq/MIK/Til NSC",
-        "/boston/runScratch/OUS-filsluse/UL-AMG-MiSeq/MIK/Til_NSC",
-    ),
-    (
-        "/mnt/ous-fx/UL-AMG-Nanopore/Til NSC",
-        "/boston/runScratch/OUS-filsluse/UL-AMG-Nanopore/Til_NSC",
-    ),
-    (
-        "/mnt/ous-fx/UL-AMG-NextSeq550Dx/Til NSC",
-        "/boston/runScratch/OUS-filsluse/UL-AMG-NextSeq550Dx/Til_NSC",
-    ),
-    (
-        "/mnt/ous-fx/UL-AMG-NIPTVeriSeq/Til NSC",
-        "/boston/runScratch/OUS-filsluse/UL-AMG-NIPTVeriSeq/Til_NSC",
-    ),
-    (
-        "/mnt/ous-fx/UL-AMG-NovaSeqX/AMG/Til NSC",
-        "/boston/runScratch/OUS-filsluse/UL-AMG-NovaSeqX/AMG/Til_NSC",
-    ),
-    (
-        "/mnt/ous-fx/UL-AMG-NovaSeqX/MIK/Til NSC",
-        "/boston/runScratch/OUS-filsluse/UL-AMG-NovaSeqX/MIK/Til_NSC",
-    ),
-    (
-        "/mnt/ous-fx/UL-AMG-OGM/Til NSC",
-        "/boston/runScratch/OUS-filsluse/UL-AMG-OGM/Til_NSC",
-    )
-]
-OUS_ROOT = "/mnt/ous-fx"
-BOSTON_ROOT = "/boston/runScratch/OUS-filsluse"
 
 # How long dirs must have been untouched before we consider deleting them (seconds)
 DIR_MIN_AGE = 300  # 5 minutes
