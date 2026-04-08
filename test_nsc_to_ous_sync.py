@@ -157,17 +157,16 @@ class TestNscToOusSync(unittest.TestCase):
         # Create corresponding OUS destination path
         ous_leaf = os.path.join(self.ous_root, "project1", "runA", "Til_Sentrallagring")
         
-        # Create test transfer jobs that point to test directories
-        test_transfer_jobs = [
-            (leaf, ous_leaf),
-        ]
+        # Write a temporary YAML config file
+        config_file = os.path.join(self.test_dir, "test_config.yaml")
+        with open(config_file, "w") as f:
+            f.write(f"transfer_jobs:\n  - src: {leaf}\n    dst: {ous_leaf}\n")
         
-        # Patch TRANSFER_JOBS and args for dry-run mode
-        with patch.object(sync, 'TRANSFER_JOBS', test_transfer_jobs):
-            with patch('sys.argv', ['prog', '--dry-run']):
-                # Mock lock acquisition to avoid system-level path issues
-                with patch.object(sync, 'acquire_lock', return_value=3):
-                    sync.main()
+        # Patch args for dry-run mode
+        with patch('sys.argv', ['prog', config_file, '--dry-run']):
+            # Mock lock acquisition to avoid system-level path issues
+            with patch.object(sync, 'acquire_lock', return_value=3):
+                sync.main()
         
         # In dry-run mode, nothing should have been moved
         self.assertTrue(os.path.exists(leaf))
@@ -181,17 +180,16 @@ class TestNscToOusSync(unittest.TestCase):
         # Create corresponding OUS destination path
         ous_leaf = os.path.join(self.ous_root, "project1", "runA", "Til_Sentrallagring")
         
-        # Create test transfer jobs that point to test directories
-        test_transfer_jobs = [
-            (leaf, ous_leaf),
-        ]
+        # Write a temporary YAML config file
+        config_file = os.path.join(self.test_dir, "test_config.yaml")
+        with open(config_file, "w") as f:
+            f.write(f"transfer_jobs:\n  - src: {leaf}\n    dst: {ous_leaf}\n")
         
-        # Patch TRANSFER_JOBS and args for live mode
-        with patch.object(sync, 'TRANSFER_JOBS', test_transfer_jobs):
-            with patch('sys.argv', ['prog']):
-                # Mock lock acquisition
-                with patch.object(sync, 'acquire_lock', return_value=3):
-                    sync.main()
+        # Patch args for live mode
+        with patch('sys.argv', ['prog', config_file]):
+            # Mock lock acquisition
+            with patch.object(sync, 'acquire_lock', return_value=3):
+                sync.main()
         
         # Files should have been moved (empty subdir remains until prune is called)
         self.assertTrue(os.path.exists(os.path.join(ous_leaf, 'file1.txt')))

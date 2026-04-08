@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import yaml
 import os
 import shutil
 import sys
@@ -10,54 +11,34 @@ import logging
 # --- Configuration ---
 
 
-
-TRANSFER_JOBS = [
-    (
-        "/mnt/ous-fx/UL-AMG-MiSeq/AMG/Til NSC",
-        "/boston/runScratch/OUS-filsluse/UL-AMG-MiSeq/AMG/Til_NSC",
-    ),
-    (
-        "/mnt/ous-fx/UL-AMG-MiSeq/IMM/Til NSC",
-        "/boston/runScratch/OUS-filsluse/UL-AMG-MiSeq/IMM/Til_NSC",
-    ),
-    (
-        "/mnt/ous-fx/UL-AMG-MiSeq/MIK/Til NSC",
-        "/boston/runScratch/OUS-filsluse/UL-AMG-MiSeq/MIK/Til_NSC",
-    ),
-    (
-        "/mnt/ous-fx/UL-AMG-Nanopore/Til NSC",
-        "/boston/runScratch/OUS-filsluse/UL-AMG-Nanopore/Til_NSC",
-    ),
-    (
-        "/mnt/ous-fx/UL-AMG-NextSeq550Dx/Til NSC",
-        "/boston/runScratch/OUS-filsluse/UL-AMG-NextSeq550Dx/Til_NSC",
-    ),
-    (
-        "/mnt/ous-fx/UL-AMG-NIPTVeriSeq/Til NSC",
-        "/boston/runScratch/OUS-filsluse/UL-AMG-NIPTVeriSeq/Til_NSC",
-    ),
-    (
-        "/mnt/ous-fx/UL-AMG-NovaSeqX/AMG/Til NSC",
-        "/boston/runScratch/OUS-filsluse/UL-AMG-NovaSeqX/AMG/Til_NSC",
-    ),
-    (
-        "/mnt/ous-fx/UL-AMG-NovaSeqX/MIK/Til NSC",
-        "/boston/runScratch/OUS-filsluse/UL-AMG-NovaSeqX/MIK/Til_NSC",
-    ),
-    (
-        "/mnt/ous-fx/UL-AMG-OGM/Til NSC",
-        "/boston/runScratch/OUS-filsluse/UL-AMG-OGM/Til_NSC",
-    )
-]
-OUS_ROOT = "/mnt/ous-fx"
-BOSTON_ROOT = "/boston/runScratch/OUS-filsluse"
-
 # How long dirs must have been untouched before we consider deleting them (seconds)
 DIR_MIN_AGE = 300  # 5 minutes
 # If the file timestamp heuristic indicates an ongoing transfer, use this fallback
 FILE_FALLBACK_MIN_AGE = 900 # 15 minutes
 
 LOCKFILE = "/var/lock/filsluse/ous_to_nsc_sync.lock"
+
+
+# --- Config loading ---
+
+def load_config(config_path: str) -> list:
+    """
+    Load transfer jobs from a YAML config file.
+    Returns a list of (src, dst) tuples.
+    """
+    try:
+        with open(config_path) as f:
+            config = yaml.safe_load(f)
+        return [(job["src"], job["dst"]) for job in config["transfer_jobs"]]
+    except FileNotFoundError:
+        logging.error(f"Config file not found: {config_path}")
+        sys.exit(1)
+    except yaml.YAMLError as e:
+        logging.error(f"Failed to parse config file {config_path}: {e}")
+        sys.exit(1)
+    except (KeyError, TypeError) as e:
+        logging.error(f"Invalid config file structure in {config_path}: {e}")
+        sys.exit(1)
 
 
 # --- Helper functions ---
@@ -202,6 +183,10 @@ def parse_args():
         description="Move completed MFT files from OUS 'Til NSC' to Boston 'Til_NSC'."
     )
     parser.add_argument(
+        "config",
+        help="Path to YAML config file specifying transfer jobs.",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Do not move or delete anything; just print what would be done.",
@@ -235,12 +220,14 @@ def main():
     mode = "DRY-RUN" if dry_run else "LIVE"
     logging.info(f"OUS→NSC sync starting in {mode} mode")
 
+    transfer_jobs = load_config(args.config)
+
     # Ensure only one instance runs at a time
     lock_fd = acquire_lock(LOCKFILE)
 
     # Main moving loop
     total_moved = 0
-    for src_path, dst_path in TRANSFER_JOBS:
+    for src_path, dst_path in transfer_jobs:
         if dry_run:
             logging.info(f"OUS→Boston: {src_path} -> {dst_path}")
         moved = move_ready_files_ous_to_boston(src_path, dst_path, dry_run)

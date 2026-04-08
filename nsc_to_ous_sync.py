@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import yaml
 import os
 import shutil
 import sys
@@ -9,52 +10,10 @@ import logging
 
 # --- Configuration ---
 
-TRANSFER_JOBS = [
-    (
-        "/boston/runScratch/OUS-filsluse/UL-AMG-MiSeq/AMG/Til_Sentrallagring",
-        "/mnt/ous-fx/UL-AMG-MiSeq/AMG/Til Sentrallagring",
-    ),
-    (
-        "/boston/runScratch/OUS-filsluse/UL-AMG-MiSeq/IMM/Til_Sentrallagring",
-        "/mnt/ous-fx/UL-AMG-MiSeq/IMM/Til Sentrallagring",
-    ),
-    (
-        "/boston/runScratch/OUS-filsluse/UL-AMG-MiSeq/MIK/Til_Sentrallagring",
-        "/mnt/ous-fx/UL-AMG-MiSeq/MIK/Til Sentrallagring",
-    ),
-    (
-        "/boston/runScratch/OUS-filsluse/UL-AMG-Nanopore/Til_Sentrallagring",
-        "/mnt/ous-fx/UL-AMG-Nanopore/Til sentrallagring", # sic
-    ),
-    (
-        "/boston/runScratch/OUS-filsluse/UL-AMG-NextSeq550Dx/Til_Sentrallagring",
-        "/mnt/ous-fx/UL-AMG-NextSeq550Dx/Til Sentrallagring"
-    ),
-    (
-        "/boston/runScratch/OUS-filsluse/UL-AMG-NIPTVeriSeq/Til_Sentrallagring",
-        "/mnt/ous-fx/UL-AMG-NIPTVeriSeq/Til Sentrallagring",
-    ),
-    (
-        "/boston/runScratch/OUS-filsluse/UL-AMG-NovaSeqX/AMG/Til_Sentrallagring",
-        "/mnt/ous-fx/UL-AMG-NovaSeqX/AMG/Til Sentrallagring"
-    ),
-    (
-        "/boston/runScratch/OUS-filsluse/UL-AMG-NovaSeqX/MIK/Til_Sentrallagring",
-        "/mnt/ous-fx/UL-AMG-NovaSeqX/MIK/Til Sentrallagring"
-    ),
-    (
-        "/boston/runScratch/OUS-filsluse/UL-AMG-OGM/Til_Sentrallagring",
-        "/mnt/ous-fx/UL-AMG-OGM/Til Sentrallagring"
-    )
-]
-
 EXCLUDE_FILENAMES = set([
     ".DS_Store",
 ])
 
-
-BOSTON_ROOT = "/boston/runScratch/OUS-filsluse"
-OUS_ROOT = "/mnt/ous-fx"
 
 # How old a file/dir must be (since last modification) before moving (seconds)
 MIN_ITEM_AGE = 60
@@ -64,6 +23,28 @@ DIR_MIN_AGE = 7200  # 2 hours
 
 # Lock file to avoid overlapping runs
 LOCKFILE = "/var/lock/filsluse/nsc_to_ous_sync.lock"
+
+
+# --- Config loading ---
+
+def load_config(config_path: str) -> list:
+    """
+    Load transfer jobs from a YAML config file.
+    Returns a list of (src, dst) tuples.
+    """
+    try:
+        with open(config_path) as f:
+            config = yaml.safe_load(f)
+        return [(job["src"], job["dst"]) for job in config["transfer_jobs"]]
+    except FileNotFoundError:
+        logging.error(f"Config file not found: {config_path}")
+        sys.exit(1)
+    except yaml.YAMLError as e:
+        logging.error(f"Failed to parse config file {config_path}: {e}")
+        sys.exit(1)
+    except (KeyError, TypeError) as e:
+        logging.error(f"Invalid config file structure in {config_path}: {e}")
+        sys.exit(1)
 
 
 # --- Age / readiness helpers ---
@@ -185,6 +166,10 @@ def parse_args():
         description="Move items from NSC/Boston Til_Sentrallagring to OUS Til Sentrallagring using staging."
     )
     parser.add_argument(
+        "config",
+        help="Path to YAML config file specifying transfer jobs.",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Do not move or delete anything; just print what would be done.",
@@ -226,12 +211,14 @@ def main():
     logging.info(f"NSC→OUS sync starting in {mode} mode "
           f"(min_item_age={min_item_age}s, dir_min_age={dir_min_age}s)")
 
+    transfer_jobs = load_config(args.config)
+
     # Lock to avoid overlapping runs
     lock_fd = acquire_lock(LOCKFILE)
 
     # Main transfer loop
     total_moved = 0
-    for src_path, dest_path in TRANSFER_JOBS:
+    for src_path, dest_path in transfer_jobs:
         if dry_run:
             logging.info(f"Boston→OUS leaf: {src_path} -> {dest_path}")
         moved_here = move_ready_files(
