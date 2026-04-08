@@ -26,9 +26,19 @@ def load_config(config_path: str) -> list:
     Load transfer jobs from a YAML config file.
     Returns a list of (src, dst) tuples.
     """
-    with open(config_path) as f:
-        config = yaml.safe_load(f)
-    return [(job["src"], job["dst"]) for job in config["transfer_jobs"]]
+    try:
+        with open(config_path) as f:
+            config = yaml.safe_load(f)
+        return [(job["src"], job["dst"]) for job in config["transfer_jobs"]]
+    except FileNotFoundError:
+        logging.error(f"Config file not found: {config_path}")
+        sys.exit(1)
+    except yaml.YAMLError as e:
+        logging.error(f"Failed to parse config file {config_path}: {e}")
+        sys.exit(1)
+    except (KeyError, TypeError) as e:
+        logging.error(f"Invalid config file structure in {config_path}: {e}")
+        sys.exit(1)
 
 
 # --- Helper functions ---
