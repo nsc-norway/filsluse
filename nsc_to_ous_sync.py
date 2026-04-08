@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import json
+import yaml
 import os
 import shutil
 import sys
@@ -29,11 +29,11 @@ LOCKFILE = "/var/lock/filsluse/nsc_to_ous_sync.lock"
 
 def load_config(config_path: str) -> list:
     """
-    Load transfer jobs from a JSON config file.
+    Load transfer jobs from a YAML config file.
     Returns a list of (src, dst) tuples.
     """
     with open(config_path) as f:
-        config = json.load(f)
+        config = yaml.safe_load(f)
     return [(job["src"], job["dst"]) for job in config["transfer_jobs"]]
 
 
@@ -157,7 +157,7 @@ def parse_args():
     )
     parser.add_argument(
         "config",
-        help="Path to JSON config file specifying transfer jobs.",
+        help="Path to YAML config file specifying transfer jobs.",
     )
     parser.add_argument(
         "--dry-run",

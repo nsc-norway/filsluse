@@ -244,19 +244,18 @@ class TestOusToNscSync(unittest.TestCase):
         # Create corresponding Boston destination path
         boston_leaf = os.path.join(self.boston_root, "project1", "Til_NSC")
         
-        # Create test transfer jobs that point to test directories
-        test_transfer_jobs = [
-            (ous_leaf, boston_leaf),
-        ]
+        # Write a temporary YAML config file
+        config_file = os.path.join(self.test_dir, "test_config.yaml")
+        with open(config_file, "w") as f:
+            f.write(f"transfer_jobs:\n  - src: {ous_leaf}\n    dst: {boston_leaf}\n")
         
-        # Patch TRANSFER_JOBS and args for dry-run mode
-        with patch.object(sync, 'TRANSFER_JOBS', test_transfer_jobs):
-            with patch('sys.argv', ['prog', '--dry-run']):
-                # Mock lock acquisition and file completion check, and os.close
-                with patch.object(sync, 'acquire_lock', return_value=3):
-                    with patch('ous_to_nsc_sync.is_mft_complete_file', return_value=True):
-                        with patch('os.close'):
-                            sync.main()
+        # Patch args for dry-run mode
+        with patch('sys.argv', ['prog', config_file, '--dry-run']):
+            # Mock lock acquisition and file completion check, and os.close
+            with patch.object(sync, 'acquire_lock', return_value=3):
+                with patch('ous_to_nsc_sync.is_mft_complete_file', return_value=True):
+                    with patch('os.close'):
+                        sync.main()
         
         # In dry-run mode, nothing should have been moved
         self.assertTrue(os.path.exists(ous_leaf))
@@ -275,19 +274,18 @@ class TestOusToNscSync(unittest.TestCase):
         # Create corresponding Boston destination path
         boston_leaf = os.path.join(self.boston_root, "project1", "Til_NSC")
         
-        # Create test transfer jobs that point to test directories
-        test_transfer_jobs = [
-            (ous_leaf, boston_leaf),
-        ]
+        # Write a temporary YAML config file
+        config_file = os.path.join(self.test_dir, "test_config.yaml")
+        with open(config_file, "w") as f:
+            f.write(f"transfer_jobs:\n  - src: {ous_leaf}\n    dst: {boston_leaf}\n")
         
-        # Patch TRANSFER_JOBS and args for live mode
-        with patch.object(sync, 'TRANSFER_JOBS', test_transfer_jobs):
-            with patch('sys.argv', ['prog']):
-                # Mock lock acquisition and file completion check, and os.close
-                with patch.object(sync, 'acquire_lock', return_value=3):
-                    with patch('ous_to_nsc_sync.is_mft_complete_file', return_value=True):
-                        with patch('os.close'):
-                            sync.main()
+        # Patch args for live mode
+        with patch('sys.argv', ['prog', config_file]):
+            # Mock lock acquisition and file completion check, and os.close
+            with patch.object(sync, 'acquire_lock', return_value=3):
+                with patch('ous_to_nsc_sync.is_mft_complete_file', return_value=True):
+                    with patch('os.close'):
+                        sync.main()
         
         # Files should have been moved (empty subdir remains until prune is called)
         self.assertTrue(os.path.exists(os.path.join(boston_leaf, 'data.txt')))
